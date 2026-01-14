@@ -30,14 +30,6 @@ func contentSize(width, height int) (int, int) {
 	return w, h
 }
 
-func headerContentWidth(innerWidth int) int {
-	width := innerWidth - 2*headerPadX
-	if width < 1 {
-		return 1
-	}
-	return width
-}
-
 func calcPaneLayout(width, height int) paneLayout {
 	const statusHeight = 3
 	const headerHeight = 1

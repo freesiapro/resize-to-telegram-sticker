@@ -1,6 +1,12 @@
 package ui
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/x/ansi"
+)
 
 func TestNewListDelegateCompact(t *testing.T) {
 	delegate := newListDelegate()
@@ -31,5 +37,23 @@ func TestNewListModelCompact(t *testing.T) {
 	}
 	if listModel.FilteringEnabled() {
 		t.Fatal("expected filtering disabled")
+	}
+}
+
+func TestSelectedRowFillsWidth(t *testing.T) {
+	listModel := newListModel()
+	listModel.SetSize(20, 5)
+	listModel.SetItems([]list.Item{
+		leftListItem{entry: entryItem{name: "sample.txt"}},
+	})
+	listModel.Select(0)
+
+	view := listModel.View()
+	lines := strings.Split(view, "\n")
+	if len(lines) == 0 {
+		t.Fatal("expected list view output")
+	}
+	if width := ansi.StringWidth(lines[0]); width != 20 {
+		t.Fatalf("expected selected row width 20, got %d", width)
 	}
 }

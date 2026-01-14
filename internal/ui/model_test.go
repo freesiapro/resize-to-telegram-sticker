@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/resize-to-telegram-sticker/internal/app"
 	"github.com/resize-to-telegram-sticker/internal/infra"
@@ -95,5 +96,35 @@ func TestConfirmDoesNotSkipWhenNoDirs(t *testing.T) {
 	m = updated.(model)
 	if m.state != stateConfirm {
 		t.Fatalf("expected confirm state, got=%v", m.state)
+	}
+}
+
+func TestFilterInputHasBackground(t *testing.T) {
+	m := NewModelWithDeps("/tmp", fakeDirLister{}, fakeExpander{})
+	if _, ok := m.filterInput.TextStyle.GetBackground().(lipgloss.NoColor); ok {
+		t.Fatal("expected filter input to have background color")
+	}
+	if _, ok := m.filterInput.PlaceholderStyle.GetBackground().(lipgloss.NoColor); ok {
+		t.Fatal("expected filter placeholder to have background color")
+	}
+	if _, ok := m.filterInput.Cursor.TextStyle.GetBackground().(lipgloss.NoColor); ok {
+		t.Fatal("expected filter cursor text style to have background color")
+	}
+}
+
+func TestFilterInputWidthMatchesHeader(t *testing.T) {
+	m := NewModelWithDeps("/tmp", fakeDirLister{}, fakeExpander{})
+	m.width = 80
+	m.height = 24
+	m.resizeLists()
+
+	contentWidth, contentHeight := contentSize(m.width, m.height)
+	layout := calcPaneLayout(contentWidth, contentHeight)
+	expected := layout.leftInnerWidth
+	if expected < 1 {
+		expected = 1
+	}
+	if m.filterInput.Width != expected {
+		t.Fatalf("expected filter width %d, got %d", expected, m.filterInput.Width)
 	}
 }

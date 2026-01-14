@@ -22,7 +22,7 @@ func TestSearchHeaderNoEllipsisWhenEmpty(t *testing.T) {
 
 	contentWidth, contentHeight := contentSize(m.width, m.height)
 	layout := calcPaneLayout(contentWidth, contentHeight)
-	headerWidth := headerContentWidth(layout.leftInnerWidth)
+	headerWidth := layout.leftInnerWidth
 
 	line := leftHeaderLine(m.filterInput.View(), headerWidth)
 	if strings.Contains(line, "...") {

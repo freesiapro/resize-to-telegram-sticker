@@ -102,6 +102,15 @@ func NewModelWithDeps(cwd string, lister DirLister, expander SelectionExpander) 
 	filter := textinput.New()
 	filter.Prompt = ""
 	filter.Focus()
+	filter.TextStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("230")).
+		Background(lipgloss.Color("24"))
+	filter.PlaceholderStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("245")).
+		Background(lipgloss.Color("24"))
+	filter.Cursor.TextStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("230")).
+		Background(lipgloss.Color("24"))
 
 	output := textinput.New()
 	output.SetValue("./output")
@@ -396,8 +405,8 @@ func (m *model) resizeLists() {
 	layout := calcPaneLayout(contentWidth, contentHeight)
 	m.leftList.SetSize(layout.leftInnerWidth, layout.listHeight)
 	m.rightList.SetSize(layout.rightInnerWidth, layout.listHeight)
-	headerWidth := headerContentWidth(layout.leftInnerWidth)
-	filterWidth := headerWidth - len(searchPrefix) - 1
+	headerWidth := layout.leftInnerWidth
+	filterWidth := headerWidth - len(searchPrefix)
 	if filterWidth < 1 {
 		filterWidth = 1
 	}
@@ -407,8 +416,8 @@ func (m *model) resizeLists() {
 func (m model) viewBrowse() string {
 	contentWidth, contentHeight := contentSize(m.width, m.height)
 	layout := calcPaneLayout(contentWidth, contentHeight)
-	leftHeaderWidth := headerContentWidth(layout.leftInnerWidth)
-	rightHeaderWidth := headerContentWidth(layout.rightInnerWidth)
+	leftHeaderWidth := layout.leftInnerWidth
+	rightHeaderWidth := layout.rightInnerWidth
 
 	filterView := m.filterInput.View()
 	leftHeaderText := leftHeaderLine(filterView, leftHeaderWidth)
@@ -586,7 +595,7 @@ func leftHeaderLine(filterView string, width int) string {
 	if width <= 0 {
 		return ""
 	}
-	return ansi.Truncate(line, width, "...")
+	return ansi.Truncate(line, width, "")
 }
 
 func rightHeaderLine(count int) string {
