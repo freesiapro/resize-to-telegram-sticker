@@ -39,7 +39,7 @@ func headerContentWidth(innerWidth int) int {
 }
 
 func calcPaneLayout(width, height int) paneLayout {
-	const statusHeight = 1
+	const statusHeight = 3
 	const headerHeight = 1
 
 	contentHeight := height - statusHeight

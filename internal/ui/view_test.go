@@ -80,3 +80,40 @@ func TestBrowseViewPaneBordersMatchHeight(t *testing.T) {
 		}
 	}
 }
+
+func TestBrowseViewStatusAndHelpSections(t *testing.T) {
+	m := NewModelWithDeps("/tmp", fakeDirLister{}, fakeExpander{})
+	m.width = 80
+	m.height = 24
+	m.status = "Ready"
+	m.resizeLists()
+
+	view := m.viewBrowse()
+	lines := strings.Split(view, "\n")
+	if len(lines) != m.height {
+		t.Fatalf("expected %d lines, got %d", m.height, len(lines))
+	}
+
+	contentWidth, contentHeight := contentSize(m.width, m.height)
+	layout := calcPaneLayout(contentWidth, contentHeight)
+	statusHeight := contentHeight - layout.contentHeight
+	if statusHeight < 3 {
+		t.Fatalf("expected status height >= 3, got %d", statusHeight)
+	}
+
+	statusStart := outerPadY + layout.contentHeight
+	statusLines := lines[statusStart : statusStart+statusHeight]
+	statusText := ansi.Strip(statusLines[0])
+	dividerText := strings.TrimSpace(ansi.Strip(statusLines[1]))
+	helpText := ansi.Strip(statusLines[statusHeight-1])
+
+	if !strings.Contains(statusText, "Ready") {
+		t.Fatalf("expected status line to include Ready, got %q", statusText)
+	}
+	if strings.Trim(dividerText, "-") != "" {
+		t.Fatalf("expected divider line, got %q", dividerText)
+	}
+	if !strings.Contains(helpText, "Tab") || !strings.Contains(helpText, "Switch") {
+		t.Fatalf("expected help line to include Tab Switch, got %q", helpText)
+	}
+}

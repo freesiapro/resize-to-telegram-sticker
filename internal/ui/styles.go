@@ -9,6 +9,10 @@ type styles struct {
 	headerBlurred lipgloss.Style
 	divider       lipgloss.Style
 	statusBar     lipgloss.Style
+	helpBar       lipgloss.Style
+	statusDivider lipgloss.Style
+	hintKey       lipgloss.Style
+	hintAction    lipgloss.Style
 	outer         lipgloss.Style
 	modal         lipgloss.Style
 	modalTitle    lipgloss.Style
@@ -31,9 +35,13 @@ func newStyles() styles {
 			Foreground(lipgloss.Color("245")).
 			Background(lipgloss.Color("235")).
 			Padding(0, headerPadX),
-		divider:   lipgloss.NewStyle().Foreground(lipgloss.Color("238")),
-		statusBar: lipgloss.NewStyle().Foreground(lipgloss.Color("244")),
-		outer:     lipgloss.NewStyle().Padding(outerPadY, outerPadX),
+		divider:       lipgloss.NewStyle().Foreground(lipgloss.Color("238")),
+		statusBar:     lipgloss.NewStyle().Foreground(lipgloss.Color("245")),
+		helpBar:       lipgloss.NewStyle().Foreground(lipgloss.Color("244")),
+		statusDivider: lipgloss.NewStyle().Foreground(lipgloss.Color("238")),
+		hintKey:       lipgloss.NewStyle().Foreground(lipgloss.Color("69")).Bold(true),
+		hintAction:    lipgloss.NewStyle().Foreground(lipgloss.Color("246")),
+		outer:         lipgloss.NewStyle().Padding(outerPadY, outerPadX),
 		modal: lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			Padding(1, 2).

@@ -7,7 +7,7 @@ func TestCalcPaneLayoutWidths(t *testing.T) {
 	if layout.leftWidth+layout.rightWidth+layout.dividerWidth != 80 {
 		t.Fatalf("width mismatch: %+v", layout)
 	}
-	if layout.contentHeight != 23 {
+	if layout.contentHeight != 21 {
 		t.Fatalf("unexpected content height: %d", layout.contentHeight)
 	}
 	if layout.leftInnerWidth > layout.leftWidth {

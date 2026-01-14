@@ -455,8 +455,7 @@ func (m model) viewBrowse() string {
 	}
 
 	top := lipgloss.JoinHorizontal(lipgloss.Top, leftView, divider, rightView)
-	statusText := ansi.Truncate(m.statusLine(), contentWidth, "...")
-	status := m.styles.statusBar.Width(contentWidth).Render(statusText)
+	status := m.statusView(contentWidth)
 
 	content := lipgloss.JoinVertical(lipgloss.Left, top, status)
 	return m.styles.outer.Width(m.width).Height(m.height).Render(content)
@@ -547,14 +546,39 @@ func (m model) statusLine() string {
 		focus = "Right"
 	}
 	parts := []string{
-		fmt.Sprintf("Focus %s", focus),
-		fmt.Sprintf("Selected %d", len(m.selectedList)),
-		"Tab Switch  Enter Open/Next  Space Toggle  Backspace Remove  q Quit",
+		fmt.Sprintf("Focus: %s", focus),
+		fmt.Sprintf("Selected: %d", len(m.selectedList)),
 	}
 	if m.status != "" {
-		parts = append([]string{m.status}, parts...)
+		parts = append([]string{fmt.Sprintf("Status: %s", m.status)}, parts...)
 	}
 	return strings.Join(parts, " | ")
+}
+
+func (m model) helpLine() string {
+	hints := []keyHint{
+		{key: "Tab", action: "Switch"},
+		{key: "Enter", action: "Open/Next"},
+		{key: "Space", action: "Toggle"},
+		{key: "Backspace", action: "Remove"},
+		{key: "q", action: "Quit"},
+	}
+	parts := make([]string, 0, len(hints))
+	for _, hint := range hints {
+		key := m.styles.hintKey.Render(hint.key)
+		action := m.styles.hintAction.Render(hint.action)
+		parts = append(parts, fmt.Sprintf("%s %s", key, action))
+	}
+	return strings.Join(parts, "  ")
+}
+
+func (m model) statusView(contentWidth int) string {
+	statusText := ansi.Truncate(m.statusLine(), contentWidth, "...")
+	statusLine := m.styles.statusBar.Width(contentWidth).Render(statusText)
+	dividerLine := m.styles.statusDivider.Width(contentWidth).Render(horizontalRule(contentWidth))
+	helpText := ansi.Truncate(m.helpLine(), contentWidth, "...")
+	helpLine := m.styles.helpBar.Width(contentWidth).Render(helpText)
+	return lipgloss.JoinVertical(lipgloss.Left, statusLine, dividerLine, helpLine)
 }
 
 func leftHeaderLine(filterView string, width int) string {
@@ -574,6 +598,13 @@ func verticalRule(height int) string {
 		return ""
 	}
 	return strings.TrimRight(strings.Repeat("|\n", height), "\n")
+}
+
+func horizontalRule(width int) string {
+	if width < 1 {
+		return ""
+	}
+	return strings.Repeat("-", width)
 }
 
 func loadDirCmd(path string, lister DirLister) tea.Cmd {
@@ -701,6 +732,11 @@ func (i leftListItem) FilterValue() string { return i.entry.name }
 type rightListItem struct {
 	selection app.SelectionItem
 	display   string
+}
+
+type keyHint struct {
+	key    string
+	action string
 }
 
 func (i rightListItem) Title() string       { return i.display }
