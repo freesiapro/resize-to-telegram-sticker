@@ -38,6 +38,9 @@ func (p Pipeline) Run(ctx context.Context, jobs []Job) []Result {
 			results = append(results, Result{InputPath: job.InputPath, Err: err})
 			continue
 		}
+		if stat, statErr := os.Stat(job.InputPath); statErr == nil {
+			info.InputSizeBytes = stat.Size()
+		}
 
 		attempts, err := domain.BuildAttempts(info, job.Kind)
 		if err != nil {

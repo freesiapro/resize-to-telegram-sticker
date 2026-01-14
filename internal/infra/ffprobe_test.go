@@ -3,7 +3,7 @@ package infra
 import "testing"
 
 func TestParseProbe(t *testing.T) {
-	jsonStr := `{"streams":[{"codec_type":"video","width":512,"height":256,"r_frame_rate":"30/1","codec_name":"vp9"},{"codec_type":"audio"}],"format":{"format_name":"webm","duration":"2.9"}}`
+	jsonStr := `{"streams":[{"codec_type":"video","width":512,"height":256,"r_frame_rate":"30/1","codec_name":"vp9"},{"codec_type":"audio"}],"format":{"format_name":"webm","duration":"2.9","bit_rate":"1234567"}}`
 
 	info, err := parseProbeJSON([]byte(jsonStr))
 	if err != nil {
@@ -20,6 +20,9 @@ func TestParseProbe(t *testing.T) {
 	}
 	if info.FormatName != "webm" || info.CodecName != "vp9" {
 		t.Fatalf("unexpected format/codec: %+v", info)
+	}
+	if info.BitrateBps != 1234567 {
+		t.Fatalf("unexpected bitrate: %d", info.BitrateBps)
 	}
 }
 
