@@ -10,13 +10,18 @@ func newListDelegate() list.DefaultDelegate {
 	delegate.ShowDescription = false
 	delegate.SetSpacing(0)
 
-	delegate.Styles.NormalTitle = delegate.Styles.NormalTitle.Padding(0, 0, 0, 1)
-	delegate.Styles.DimmedTitle = delegate.Styles.DimmedTitle.Padding(0, 0, 0, 1)
+	delegate.Styles.NormalTitle = delegate.Styles.NormalTitle.
+		Foreground(lipgloss.Color("250")).
+		Padding(0, 0, 0, 1)
+	delegate.Styles.DimmedTitle = delegate.Styles.DimmedTitle.
+		Foreground(lipgloss.Color("242")).
+		Padding(0, 0, 0, 1)
 	delegate.Styles.SelectedTitle = lipgloss.NewStyle().
 		Foreground(lipgloss.Color("69")).
 		Bold(true).
 		Padding(0, 0, 0, 1)
 	delegate.Styles.SelectedDesc = delegate.Styles.SelectedTitle
+	delegate.Styles.FilterMatch = delegate.Styles.FilterMatch.Foreground(lipgloss.Color("69"))
 
 	return delegate
 }

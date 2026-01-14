@@ -3,6 +3,8 @@ package ui
 import "github.com/charmbracelet/lipgloss"
 
 type styles struct {
+	paneFocused   lipgloss.Style
+	paneBlurred   lipgloss.Style
 	headerFocused lipgloss.Style
 	headerBlurred lipgloss.Style
 	divider       lipgloss.Style
@@ -13,10 +15,22 @@ type styles struct {
 
 func newStyles() styles {
 	return styles{
-		headerFocused: lipgloss.NewStyle().Foreground(lipgloss.Color("69")).Bold(true).Padding(0, 1),
-		headerBlurred: lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Padding(0, 1),
-		divider:       lipgloss.NewStyle().Foreground(lipgloss.Color("238")),
-		statusBar:     lipgloss.NewStyle().Foreground(lipgloss.Color("244")),
+		paneFocused: lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder()).
+			BorderForeground(lipgloss.Color("69")),
+		paneBlurred: lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder()).
+			BorderForeground(lipgloss.Color("238")),
+		headerFocused: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("230")).
+			Background(lipgloss.Color("24")).
+			Bold(true).
+			Padding(0, 1),
+		headerBlurred: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("245")).
+			Padding(0, 1),
+		divider:   lipgloss.NewStyle().Foreground(lipgloss.Color("238")),
+		statusBar: lipgloss.NewStyle().Foreground(lipgloss.Color("244")),
 		modal: lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			Padding(1, 2).

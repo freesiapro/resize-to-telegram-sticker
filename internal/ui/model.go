@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/resize-to-telegram-sticker/internal/app"
 	"github.com/resize-to-telegram-sticker/internal/domain"
@@ -352,51 +353,17 @@ func (m *model) resizeLists() {
 	if m.width == 0 || m.height == 0 {
 		return
 	}
-	statusHeight := 1
-	headerHeight := 1
-	contentHeight := m.height - statusHeight
-	if contentHeight < 2 {
-		contentHeight = 2
-	}
-	listHeight := contentHeight - headerHeight
-	if listHeight < 1 {
-		listHeight = 1
-	}
-
-	dividerWidth := 1
-	if m.width < 3 {
-		dividerWidth = 0
-	}
-	leftWidth := (m.width - dividerWidth) / 2
-	rightWidth := m.width - dividerWidth - leftWidth
-	if leftWidth < 1 {
-		leftWidth = 1
-	}
-	if rightWidth < 1 {
-		rightWidth = 1
-	}
-
-	m.leftList.SetSize(leftWidth, listHeight)
-	m.rightList.SetSize(rightWidth, listHeight)
+	layout := calcPaneLayout(m.width, m.height)
+	m.leftList.SetSize(layout.leftInnerWidth, layout.listHeight)
+	m.rightList.SetSize(layout.rightInnerWidth, layout.listHeight)
 }
 
 func (m model) viewBrowse() string {
-	contentHeight := max(1, m.height-1)
-	dividerWidth := 1
-	if m.width < 3 {
-		dividerWidth = 0
-	}
-	leftWidth := (m.width - dividerWidth) / 2
-	rightWidth := m.width - dividerWidth - leftWidth
-	if leftWidth < 1 {
-		leftWidth = 1
-	}
-	if rightWidth < 1 {
-		rightWidth = 1
-	}
+	layout := calcPaneLayout(m.width, m.height)
 
-	leftHeaderText := leftHeaderLine(m.cwd, m.filterText)
+	leftHeaderText := leftHeaderLine(m.cwd, m.filterText, layout.leftInnerWidth)
 	rightHeaderText := rightHeaderLine(len(m.selectedList))
+	rightHeaderText = ansi.Truncate(rightHeaderText, layout.rightInnerWidth, "...")
 
 	leftHeaderStyle := m.styles.headerBlurred
 	rightHeaderStyle := m.styles.headerBlurred
@@ -407,18 +374,31 @@ func (m model) viewBrowse() string {
 		rightHeaderStyle = m.styles.headerFocused
 	}
 
-	leftHeader := leftHeaderStyle.Width(leftWidth).Render(leftHeaderText)
-	rightHeader := rightHeaderStyle.Width(rightWidth).Render(rightHeaderText)
+	leftHeader := leftHeaderStyle.Width(layout.leftInnerWidth).Render(leftHeaderText)
+	rightHeader := rightHeaderStyle.Width(layout.rightInnerWidth).Render(rightHeaderText)
 
 	leftContent := lipgloss.JoinVertical(lipgloss.Left, leftHeader, m.leftList.View())
 	rightContent := lipgloss.JoinVertical(lipgloss.Left, rightHeader, m.rightList.View())
 
-	leftView := lipgloss.NewStyle().Width(leftWidth).Height(contentHeight).Render(leftContent)
-	rightView := lipgloss.NewStyle().Width(rightWidth).Height(contentHeight).Render(rightContent)
+	leftPaneStyle := lipgloss.NewStyle()
+	rightPaneStyle := lipgloss.NewStyle()
+	if layout.borderSize > 0 {
+		leftPaneStyle = m.styles.paneBlurred
+		rightPaneStyle = m.styles.paneBlurred
+		if m.focus == focusLeft {
+			leftPaneStyle = m.styles.paneFocused
+		}
+		if m.focus == focusRight {
+			rightPaneStyle = m.styles.paneFocused
+		}
+	}
+
+	leftView := leftPaneStyle.Width(layout.leftInnerWidth).Height(layout.innerHeight).Render(leftContent)
+	rightView := rightPaneStyle.Width(layout.rightInnerWidth).Height(layout.innerHeight).Render(rightContent)
 
 	var divider string
-	if dividerWidth > 0 {
-		divider = m.styles.divider.Render(verticalRule(contentHeight))
+	if layout.dividerWidth > 0 {
+		divider = m.styles.divider.Render(verticalRule(layout.contentHeight))
 	}
 
 	top := lipgloss.JoinHorizontal(lipgloss.Top, leftView, divider, rightView)
@@ -512,8 +492,12 @@ func (m model) statusLine() string {
 	return strings.Join(parts, " | ")
 }
 
-func leftHeaderLine(cwd string, filter string) string {
-	return fmt.Sprintf("Dir: %s | Search: %s", cwd, filter)
+func leftHeaderLine(cwd string, filter string, width int) string {
+	line := fmt.Sprintf("Dir: %s | Search: %s", cwd, filter)
+	if width <= 0 {
+		return ""
+	}
+	return ansi.Truncate(line, width, "...")
 }
 
 func rightHeaderLine(count int) string {

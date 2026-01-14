@@ -55,7 +55,7 @@ func TestModelFilterInput(t *testing.T) {
 }
 
 func TestLeftHeaderLineInlineSearch(t *testing.T) {
-	line := leftHeaderLine("/tmp", "cat")
+	line := leftHeaderLine("/tmp", "cat", 40)
 	if strings.Contains(line, "\n") {
 		t.Fatal("expected single line header")
 	}
