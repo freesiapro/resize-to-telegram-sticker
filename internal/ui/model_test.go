@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -50,6 +51,16 @@ func TestModelFilterInput(t *testing.T) {
 	m = updated.(model)
 	if m.filterText != "c" {
 		t.Fatalf("expected filter 'c', got '%s'", m.filterText)
+	}
+}
+
+func TestLeftHeaderLineInlineSearch(t *testing.T) {
+	line := leftHeaderLine("/tmp", "cat")
+	if strings.Contains(line, "\n") {
+		t.Fatal("expected single line header")
+	}
+	if !strings.Contains(line, "Search: cat") {
+		t.Fatalf("expected search text, got %q", line)
 	}
 }
 

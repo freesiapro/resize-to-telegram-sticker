@@ -93,17 +93,8 @@ func NewModel() model {
 }
 
 func NewModelWithDeps(cwd string, lister DirLister, expander SelectionExpander) model {
-	left := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
-	left.SetShowHelp(false)
-	left.SetShowStatusBar(false)
-	left.SetFilteringEnabled(false)
-	left.DisableQuitKeybindings()
-
-	right := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
-	right.SetShowHelp(false)
-	right.SetShowStatusBar(false)
-	right.SetFilteringEnabled(false)
-	right.DisableQuitKeybindings()
+	left := newListModel()
+	right := newListModel()
 
 	output := textinput.New()
 	output.SetValue("./output")
@@ -362,51 +353,78 @@ func (m *model) resizeLists() {
 		return
 	}
 	statusHeight := 1
-	headerHeight := 2
-	borderHeight := 2
-
-	paneHeight := m.height - statusHeight
-	listHeight := paneHeight - headerHeight - borderHeight
+	headerHeight := 1
+	contentHeight := m.height - statusHeight
+	if contentHeight < 2 {
+		contentHeight = 2
+	}
+	listHeight := contentHeight - headerHeight
 	if listHeight < 1 {
 		listHeight = 1
 	}
 
-	leftWidth := m.width / 2
-	rightWidth := m.width - leftWidth
-	contentWidthLeft := max(1, leftWidth-2)
-	contentWidthRight := max(1, rightWidth-2)
+	dividerWidth := 1
+	if m.width < 3 {
+		dividerWidth = 0
+	}
+	leftWidth := (m.width - dividerWidth) / 2
+	rightWidth := m.width - dividerWidth - leftWidth
+	if leftWidth < 1 {
+		leftWidth = 1
+	}
+	if rightWidth < 1 {
+		rightWidth = 1
+	}
 
-	m.leftList.SetSize(contentWidthLeft, listHeight)
-	m.rightList.SetSize(contentWidthRight, listHeight)
+	m.leftList.SetSize(leftWidth, listHeight)
+	m.rightList.SetSize(rightWidth, listHeight)
 }
 
 func (m model) viewBrowse() string {
-	leftHeader := m.styles.header.Render(fmt.Sprintf("Current Dir: %s\nSearch: %s", m.cwd, m.filterText))
-	rightHeader := m.styles.header.Render(fmt.Sprintf("Selected (%d)", len(m.selectedList)))
-
-	leftContent := leftHeader + "\n" + m.leftList.View()
-	rightContent := rightHeader + "\n" + m.rightList.View()
-
-	leftPane := m.styles.paneBlurred
-	rightPane := m.styles.paneBlurred
-	if m.focus == focusLeft {
-		leftPane = m.styles.paneFocused
-	} else {
-		rightPane = m.styles.paneFocused
+	contentHeight := max(1, m.height-1)
+	dividerWidth := 1
+	if m.width < 3 {
+		dividerWidth = 0
+	}
+	leftWidth := (m.width - dividerWidth) / 2
+	rightWidth := m.width - dividerWidth - leftWidth
+	if leftWidth < 1 {
+		leftWidth = 1
+	}
+	if rightWidth < 1 {
+		rightWidth = 1
 	}
 
-	leftWidth := m.width / 2
-	rightWidth := m.width - leftWidth
+	leftHeaderText := leftHeaderLine(m.cwd, m.filterText)
+	rightHeaderText := rightHeaderLine(len(m.selectedList))
 
-	leftView := leftPane.Width(max(1, leftWidth)).Height(max(1, m.height-1)).Render(leftContent)
-	rightView := rightPane.Width(max(1, rightWidth)).Height(max(1, m.height-1)).Render(rightContent)
+	leftHeaderStyle := m.styles.headerBlurred
+	rightHeaderStyle := m.styles.headerBlurred
+	if m.focus == focusLeft {
+		leftHeaderStyle = m.styles.headerFocused
+	}
+	if m.focus == focusRight {
+		rightHeaderStyle = m.styles.headerFocused
+	}
 
-	status := m.styles.statusBar.Render(m.statusLine())
+	leftHeader := leftHeaderStyle.Width(leftWidth).Render(leftHeaderText)
+	rightHeader := rightHeaderStyle.Width(rightWidth).Render(rightHeaderText)
 
-	return lipgloss.JoinVertical(lipgloss.Left,
-		lipgloss.JoinHorizontal(lipgloss.Top, leftView, rightView),
-		status,
-	)
+	leftContent := lipgloss.JoinVertical(lipgloss.Left, leftHeader, m.leftList.View())
+	rightContent := lipgloss.JoinVertical(lipgloss.Left, rightHeader, m.rightList.View())
+
+	leftView := lipgloss.NewStyle().Width(leftWidth).Height(contentHeight).Render(leftContent)
+	rightView := lipgloss.NewStyle().Width(rightWidth).Height(contentHeight).Render(rightContent)
+
+	var divider string
+	if dividerWidth > 0 {
+		divider = m.styles.divider.Render(verticalRule(contentHeight))
+	}
+
+	top := lipgloss.JoinHorizontal(lipgloss.Top, leftView, divider, rightView)
+	status := m.styles.statusBar.Width(m.width).Render(m.statusLine())
+
+	return lipgloss.JoinVertical(lipgloss.Left, top, status)
 }
 
 func (m model) viewConfirm() string {
@@ -484,15 +502,29 @@ func (m model) statusLine() string {
 		focus = "Right"
 	}
 	parts := []string{
-		fmt.Sprintf("Focus: %s", focus),
-		fmt.Sprintf("Selected: %d", len(m.selectedList)),
-		"Filter: dirs/images/gif/video",
-		"Tab: switch  Enter: open/next  Space: toggle  q: quit",
+		fmt.Sprintf("Focus %s", focus),
+		fmt.Sprintf("Selected %d", len(m.selectedList)),
+		"Tab Switch  Enter Open/Next  Space Toggle  Backspace Remove  q Quit",
 	}
 	if m.status != "" {
 		parts = append([]string{m.status}, parts...)
 	}
 	return strings.Join(parts, " | ")
+}
+
+func leftHeaderLine(cwd string, filter string) string {
+	return fmt.Sprintf("Dir: %s | Search: %s", cwd, filter)
+}
+
+func rightHeaderLine(count int) string {
+	return fmt.Sprintf("Selected: %d", count)
+}
+
+func verticalRule(height int) string {
+	if height < 1 {
+		return ""
+	}
+	return strings.TrimRight(strings.Repeat("|\n", height), "\n")
 }
 
 func loadDirCmd(path string, lister DirLister) tea.Cmd {

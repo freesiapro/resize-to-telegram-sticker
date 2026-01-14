@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	p := tea.NewProgram(ui.NewModel())
+	p := tea.NewProgram(ui.NewModel(), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("run failed: %v\n", err)
 		os.Exit(1)
