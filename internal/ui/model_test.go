@@ -39,8 +39,8 @@ func TestNewModelDefaults(t *testing.T) {
 	if m.outputDir != "./output" {
 		t.Fatalf("expected outputDir ./output, got=%s", m.outputDir)
 	}
-	if m.filterText != "" {
-		t.Fatalf("expected empty filter, got=%s", m.filterText)
+	if m.filterInput.Value() != "" {
+		t.Fatalf("expected empty filter, got=%s", m.filterInput.Value())
 	}
 }
 
@@ -49,18 +49,21 @@ func TestModelFilterInput(t *testing.T) {
 	m.focus = focusLeft
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
 	m = updated.(model)
-	if m.filterText != "c" {
-		t.Fatalf("expected filter 'c', got '%s'", m.filterText)
+	if m.filterInput.Value() != "c" {
+		t.Fatalf("expected filter 'c', got '%s'", m.filterInput.Value())
 	}
 }
 
 func TestLeftHeaderLineInlineSearch(t *testing.T) {
-	line := leftHeaderLine("/tmp", "cat", 40)
+	line := leftHeaderLine("cat", 40)
 	if strings.Contains(line, "\n") {
 		t.Fatal("expected single line header")
 	}
 	if !strings.Contains(line, "Search: cat") {
 		t.Fatalf("expected search text, got %q", line)
+	}
+	if strings.Contains(line, "Dir:") {
+		t.Fatalf("expected no dir label, got %q", line)
 	}
 }
 

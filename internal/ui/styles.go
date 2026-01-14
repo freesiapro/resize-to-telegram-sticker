@@ -26,11 +26,11 @@ func newStyles() styles {
 			Foreground(lipgloss.Color("230")).
 			Background(lipgloss.Color("24")).
 			Bold(true).
-			Padding(0, 1),
+			Padding(0, headerPadX),
 		headerBlurred: lipgloss.NewStyle().
 			Foreground(lipgloss.Color("245")).
 			Background(lipgloss.Color("235")).
-			Padding(0, 1),
+			Padding(0, headerPadX),
 		divider:   lipgloss.NewStyle().Foreground(lipgloss.Color("238")),
 		statusBar: lipgloss.NewStyle().Foreground(lipgloss.Color("244")),
 		outer:     lipgloss.NewStyle().Padding(outerPadY, outerPadX),

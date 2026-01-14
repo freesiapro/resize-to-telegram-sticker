@@ -36,6 +36,8 @@ const (
 	focusRight
 )
 
+const searchPrefix = "Search: "
+
 type DirLister interface {
 	ListDirEntries(root string) ([]infra.DirEntry, error)
 }
@@ -57,9 +59,9 @@ type model struct {
 	width  int
 	height int
 
-	cwd        string
-	filterText string
-	entries    []entryItem
+	cwd         string
+	filterInput textinput.Model
+	entries     []entryItem
 
 	selectedSet  map[string]struct{}
 	selectedList []app.SelectionItem
@@ -97,6 +99,10 @@ func NewModelWithDeps(cwd string, lister DirLister, expander SelectionExpander) 
 	left := newListModel()
 	right := newListModel()
 
+	filter := textinput.New()
+	filter.Prompt = ""
+	filter.Focus()
+
 	output := textinput.New()
 	output.SetValue("./output")
 	output.Placeholder = "./output"
@@ -105,7 +111,7 @@ func NewModelWithDeps(cwd string, lister DirLister, expander SelectionExpander) 
 		state:        stateBrowse,
 		focus:        focusLeft,
 		cwd:          cwd,
-		filterText:   "",
+		filterInput:  filter,
 		selectedSet:  make(map[string]struct{}),
 		selectedList: make([]app.SelectionItem, 0),
 		leftList:     left,
@@ -123,58 +129,71 @@ func NewModelWithDeps(cwd string, lister DirLister, expander SelectionExpander) 
 }
 
 func (m model) Init() tea.Cmd {
-	return loadDirCmd(m.cwd, m.lister)
+	return tea.Batch(loadDirCmd(m.cwd, m.lister), textinput.Blink)
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var inputCmd tea.Cmd
+	if _, ok := msg.(tea.KeyMsg); !ok {
+		switch m.state {
+		case stateBrowse:
+			m.filterInput, inputCmd = m.filterInput.Update(msg)
+		case stateConfig:
+			m.outputInput, inputCmd = m.outputInput.Update(msg)
+		}
+	}
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
 		m.resizeLists()
-		return m, nil
+		return m, inputCmd
 	case dirEntriesMsg:
 		if msg.err != nil {
 			m.status = fmt.Sprintf("Error: %v", msg.err)
-			return m, nil
+			return m, inputCmd
 		}
 		m.cwd = msg.path
 		m.entries = buildEntries(msg.path, msg.entries, m.selectedSet)
 		m.refreshLeftList()
-		return m, nil
+		return m, inputCmd
 	case confirmMsg:
 		m.confirmLoading = false
 		m.confirmErr = msg.err
 		if msg.err == nil {
 			m.confirmResult = msg.result
 		}
-		return m, nil
+		return m, inputCmd
 	case errMsg:
 		m.status = fmt.Sprintf("Error: %v", msg.err)
-		return m, nil
+		return m, inputCmd
 	case doneMsg:
 		m.state = stateSummary
 		m.results = msg.results
-		return m, nil
+		return m, inputCmd
 	case tea.KeyMsg:
 		if msg.String() == "ctrl+c" || msg.String() == "q" {
 			return m, tea.Quit
 		}
 		switch m.state {
 		case stateBrowse:
-			return m.updateBrowse(msg)
+			updated, cmd := m.updateBrowse(msg)
+			return updated, tea.Batch(inputCmd, cmd)
 		case stateConfirm:
-			return m.updateConfirm(msg)
+			updated, cmd := m.updateConfirm(msg)
+			return updated, tea.Batch(inputCmd, cmd)
 		case stateConfig:
-			return m.updateConfig(msg)
+			updated, cmd := m.updateConfig(msg)
+			return updated, tea.Batch(inputCmd, cmd)
 		case stateSummary:
-			return m, nil
+			return m, inputCmd
 		case stateProcessing:
-			return m, nil
+			return m, inputCmd
 		}
 	}
 
-	return m, nil
+	return m, inputCmd
 }
 
 func (m model) View() string {
@@ -197,8 +216,10 @@ func (m model) updateBrowse(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "tab":
 		if m.focus == focusLeft {
 			m.focus = focusRight
+			m.filterInput.Blur()
 		} else {
 			m.focus = focusLeft
+			return m, m.filterInput.Focus()
 		}
 		return m, nil
 	case "enter":
@@ -207,7 +228,7 @@ func (m model) updateBrowse(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if !ok || !item.entry.isDir {
 				return m, nil
 			}
-			m.filterText = ""
+			m.filterInput.Reset()
 			return m, loadDirCmd(item.entry.path, m.lister)
 		}
 		return m.startConfirm()
@@ -220,24 +241,42 @@ func (m model) updateBrowse(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case "backspace":
-		if m.focus == focusLeft {
-			m.filterText = removeLastRune(m.filterText)
-			m.refreshLeftList()
-			return m, nil
-		}
 		if m.focus == focusRight {
 			m.removeSelectedRight()
 			return m, nil
 		}
 	}
 
-	if m.focus == focusLeft && msg.Type == tea.KeyRunes && len(msg.Runes) > 0 {
-		m.filterText += string(msg.Runes)
-		m.refreshLeftList()
-		return m, nil
+	var cmds []tea.Cmd
+	if m.focus == focusLeft {
+		before := m.filterInput.Value()
+		var cmd tea.Cmd
+		m.filterInput, cmd = m.filterInput.Update(msg)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		if m.filterInput.Value() != before {
+			m.refreshLeftList()
+		}
 	}
 
-	return m.updateLists(msg)
+	shouldUpdateList := true
+	if m.focus == focusLeft {
+		if msg.Type == tea.KeyRunes || msg.String() == "backspace" {
+			shouldUpdateList = false
+		}
+	}
+	if shouldUpdateList {
+		updated, cmd := m.updateLists(msg)
+		m = updated.(model)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+	if len(cmds) == 0 {
+		return m, nil
+	}
+	return m, tea.Batch(cmds...)
 }
 
 func (m model) updateConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -319,7 +358,7 @@ func (m *model) removeSelectedRight() {
 }
 
 func (m *model) refreshLeftList() {
-	filtered := filterEntries(m.entries, m.filterText)
+	filtered := filterEntries(m.entries, m.filterInput.Value())
 	items := make([]list.Item, 0, len(filtered))
 	for _, e := range filtered {
 		e.selected = false
@@ -357,15 +396,24 @@ func (m *model) resizeLists() {
 	layout := calcPaneLayout(contentWidth, contentHeight)
 	m.leftList.SetSize(layout.leftInnerWidth, layout.listHeight)
 	m.rightList.SetSize(layout.rightInnerWidth, layout.listHeight)
+	headerWidth := headerContentWidth(layout.leftInnerWidth)
+	filterWidth := headerWidth - len(searchPrefix) - 1
+	if filterWidth < 1 {
+		filterWidth = 1
+	}
+	m.filterInput.Width = filterWidth
 }
 
 func (m model) viewBrowse() string {
 	contentWidth, contentHeight := contentSize(m.width, m.height)
 	layout := calcPaneLayout(contentWidth, contentHeight)
+	leftHeaderWidth := headerContentWidth(layout.leftInnerWidth)
+	rightHeaderWidth := headerContentWidth(layout.rightInnerWidth)
 
-	leftHeaderText := leftHeaderLine(m.cwd, m.filterText, layout.leftInnerWidth)
+	filterView := m.filterInput.View()
+	leftHeaderText := leftHeaderLine(filterView, leftHeaderWidth)
 	rightHeaderText := rightHeaderLine(len(m.selectedList))
-	rightHeaderText = ansi.Truncate(rightHeaderText, layout.rightInnerWidth, "...")
+	rightHeaderText = ansi.Truncate(rightHeaderText, rightHeaderWidth, "...")
 
 	leftHeaderStyle := m.styles.headerBlurred
 	rightHeaderStyle := m.styles.headerBlurred
@@ -376,11 +424,14 @@ func (m model) viewBrowse() string {
 		rightHeaderStyle = m.styles.headerFocused
 	}
 
-	leftHeader := leftHeaderStyle.Width(layout.leftInnerWidth).Render(leftHeaderText)
-	rightHeader := rightHeaderStyle.Width(layout.rightInnerWidth).Render(rightHeaderText)
+	leftHeader := leftHeaderStyle.Width(leftHeaderWidth).Render(leftHeaderText)
+	rightHeader := rightHeaderStyle.Width(rightHeaderWidth).Render(rightHeaderText)
 
 	leftContent := lipgloss.JoinVertical(lipgloss.Left, leftHeader, m.leftList.View())
 	rightContent := lipgloss.JoinVertical(lipgloss.Left, rightHeader, m.rightList.View())
+	contentLimiter := lipgloss.NewStyle().MaxHeight(layout.innerHeight)
+	leftContent = contentLimiter.Render(leftContent)
+	rightContent = contentLimiter.Render(rightContent)
 
 	leftPaneStyle := lipgloss.NewStyle()
 	rightPaneStyle := lipgloss.NewStyle()
@@ -506,8 +557,8 @@ func (m model) statusLine() string {
 	return strings.Join(parts, " | ")
 }
 
-func leftHeaderLine(cwd string, filter string, width int) string {
-	line := fmt.Sprintf("Dir: %s | Search: %s", cwd, filter)
+func leftHeaderLine(filterView string, width int) string {
+	line := fmt.Sprintf("%s%s", searchPrefix, filterView)
 	if width <= 0 {
 		return ""
 	}
