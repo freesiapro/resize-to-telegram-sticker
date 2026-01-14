@@ -13,12 +13,8 @@ type ProbeRunner interface {
 	Probe(ctx context.Context, path string) (domain.MediaInfo, error)
 }
 
-type EncodeOptions struct {
-	TrimSeconds int
-}
-
 type EncodeRunner interface {
-	Encode(ctx context.Context, inputPath string, attempt domain.EncodeAttempt, outputPath string, opts EncodeOptions) error
+	Encode(ctx context.Context, inputPath string, attempt domain.EncodeAttempt, outputPath string, opts domain.EncodeOptions) error
 }
 
 type Result struct {
@@ -52,7 +48,7 @@ func (p Pipeline) Run(ctx context.Context, jobs []Job) []Result {
 		var lastErr error
 		var lastIssues []domain.ValidationIssue
 		for _, a := range attempts {
-			err = p.Encode.Encode(ctx, job.InputPath, a, output, EncodeOptions{TrimSeconds: domain.MaxStickerDurationSeconds})
+			err = p.Encode.Encode(ctx, job.InputPath, a, output, domain.EncodeOptions{TrimSeconds: domain.MaxStickerDurationSeconds})
 			if err != nil {
 				lastErr = err
 				continue

@@ -11,11 +11,7 @@ import (
 
 type FFmpegRunner struct{}
 
-type EncodeOptions struct {
-	TrimSeconds int
-}
-
-func (r FFmpegRunner) Encode(ctx context.Context, inputPath string, attempt domain.EncodeAttempt, outputPath string, opts EncodeOptions) error {
+func (r FFmpegRunner) Encode(ctx context.Context, inputPath string, attempt domain.EncodeAttempt, outputPath string, opts domain.EncodeOptions) error {
 	inputKw := buildInputKwArgs(attempt)
 	stream := ffmpeg.Input(inputPath, inputKw)
 
