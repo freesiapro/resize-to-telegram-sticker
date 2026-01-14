@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/resize-to-telegram-sticker/internal/domain"
 )
@@ -44,7 +45,13 @@ func (p Pipeline) Run(ctx context.Context, jobs []Job) []Result {
 			continue
 		}
 
-		output := outputPath(job.InputPath)
+		if job.OutputDir != "" {
+			if err := os.MkdirAll(job.OutputDir, 0o755); err != nil {
+				results = append(results, Result{InputPath: job.InputPath, Err: err})
+				continue
+			}
+		}
+		output := outputPath(job)
 		var lastErr error
 		var lastIssues []domain.ValidationIssue
 		for _, a := range attempts {
@@ -82,8 +89,11 @@ func (p Pipeline) Run(ctx context.Context, jobs []Job) []Result {
 	return results
 }
 
-func outputPath(input string) string {
-	ext := filepath.Ext(input)
-	base := input[:len(input)-len(ext)]
-	return base + "_sticker.webm"
+func outputPath(job Job) string {
+	baseName := strings.TrimSuffix(filepath.Base(job.InputPath), filepath.Ext(job.InputPath))
+	name := baseName + "_sticker.webm"
+	if job.OutputDir == "" {
+		return filepath.Join(filepath.Dir(job.InputPath), name)
+	}
+	return filepath.Join(job.OutputDir, name)
 }
