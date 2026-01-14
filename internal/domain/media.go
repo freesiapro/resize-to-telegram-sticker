@@ -22,6 +22,8 @@ type MediaInfo struct {
 	HasAudio        bool
 	FormatName      string
 	CodecName       string
+	BitrateBps      int64
+	InputSizeBytes  int64
 }
 
 var (

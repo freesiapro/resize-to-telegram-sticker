@@ -27,6 +27,7 @@ type probeJSON struct {
 	Format struct {
 		FormatName string `json:"format_name"`
 		Duration   string `json:"duration"`
+		BitRate    string `json:"bit_rate"`
 	} `json:"format"`
 }
 
@@ -74,6 +75,7 @@ func parseProbeJSON(data []byte) (domain.MediaInfo, error) {
 		info.DurationSeconds = parseDuration(p.Format.Duration)
 	}
 	info.FormatName = p.Format.FormatName
+	info.BitrateBps = parseBitRate(p.Format.BitRate)
 
 	return info, nil
 }
@@ -94,4 +96,19 @@ func parseFrameRate(v string) float64 {
 func parseDuration(v string) float64 {
 	f, _ := strconv.ParseFloat(v, 64)
 	return f
+}
+
+func parseBitRate(v string) int64 {
+	if v == "" {
+		return 0
+	}
+	rate, err := strconv.ParseInt(v, 10, 64)
+	if err == nil {
+		return rate
+	}
+	f, err := strconv.ParseFloat(v, 64)
+	if err != nil {
+		return 0
+	}
+	return int64(f)
 }

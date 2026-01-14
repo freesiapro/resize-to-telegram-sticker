@@ -51,6 +51,8 @@ func BuildAttempts(info MediaInfo, kind InputKind) ([]EncodeAttempt, error) {
 	}
 
 	bitrateSteps := []float64{1.0, 0.85, 0.7, 0.55}
+	sourceSizeBytes := estimateSourceSizeBytes(info.InputSizeBytes, info.BitrateBps, baseDuration)
+	bitrateSteps = chooseBitrateSteps(bitrateSteps, sourceSizeBytes, MaxStickerSizeBytes)
 	scaleSteps := []float64{1.0, 0.9, 0.8}
 	fpsSteps := []int{baseFPS, 24, 20, 15}
 
@@ -112,4 +114,57 @@ func BuildAttempts(info MediaInfo, kind InputKind) ([]EncodeAttempt, error) {
 	}
 
 	return attempts, nil
+}
+
+func estimateSourceSizeBytes(inputSizeBytes int64, bitrateBps int64, durationSeconds int) int64 {
+	sizeByBitrate := int64(0)
+	if bitrateBps > 0 && durationSeconds > 0 {
+		sizeByBitrate = bitrateBps * int64(durationSeconds) / 8
+	}
+	if inputSizeBytes > sizeByBitrate {
+		return inputSizeBytes
+	}
+	return sizeByBitrate
+}
+
+func chooseBitrateSteps(steps []float64, sourceSizeBytes int64, targetSizeBytes int) []float64 {
+	if sourceSizeBytes <= 0 || targetSizeBytes <= 0 {
+		return steps
+	}
+	ratio := float64(targetSizeBytes) / float64(sourceSizeBytes)
+	chosen := pickBitrateStep(ratio)
+	return reorderSteps(steps, chosen)
+}
+
+func pickBitrateStep(ratio float64) float64 {
+	if ratio >= 0.9 {
+		return 1.0
+	}
+	if ratio >= 0.7 {
+		return 0.85
+	}
+	if ratio >= 0.5 {
+		return 0.7
+	}
+	return 0.55
+}
+
+func reorderSteps(steps []float64, first float64) []float64 {
+	reordered := make([]float64, 0, len(steps))
+	found := false
+	for _, step := range steps {
+		if step == first {
+			reordered = append(reordered, step)
+			found = true
+		}
+	}
+	if !found {
+		return steps
+	}
+	for _, step := range steps {
+		if step != first {
+			reordered = append(reordered, step)
+		}
+	}
+	return reordered
 }
