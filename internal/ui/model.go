@@ -353,13 +353,15 @@ func (m *model) resizeLists() {
 	if m.width == 0 || m.height == 0 {
 		return
 	}
-	layout := calcPaneLayout(m.width, m.height)
+	contentWidth, contentHeight := contentSize(m.width, m.height)
+	layout := calcPaneLayout(contentWidth, contentHeight)
 	m.leftList.SetSize(layout.leftInnerWidth, layout.listHeight)
 	m.rightList.SetSize(layout.rightInnerWidth, layout.listHeight)
 }
 
 func (m model) viewBrowse() string {
-	layout := calcPaneLayout(m.width, m.height)
+	contentWidth, contentHeight := contentSize(m.width, m.height)
+	layout := calcPaneLayout(contentWidth, contentHeight)
 
 	leftHeaderText := leftHeaderLine(m.cwd, m.filterText, layout.leftInnerWidth)
 	rightHeaderText := rightHeaderLine(len(m.selectedList))
@@ -402,19 +404,24 @@ func (m model) viewBrowse() string {
 	}
 
 	top := lipgloss.JoinHorizontal(lipgloss.Top, leftView, divider, rightView)
-	status := m.styles.statusBar.Width(m.width).Render(m.statusLine())
+	statusText := ansi.Truncate(m.statusLine(), contentWidth, "...")
+	status := m.styles.statusBar.Width(contentWidth).Render(statusText)
 
-	return lipgloss.JoinVertical(lipgloss.Left, top, status)
+	content := lipgloss.JoinVertical(lipgloss.Left, top, status)
+	return m.styles.outer.Width(m.width).Height(m.height).Render(content)
 }
 
 func (m model) viewConfirm() string {
+	contentWidth, contentHeight := contentSize(m.width, m.height)
 	if m.confirmLoading {
 		box := m.styles.modal.Render("Scanning directories...")
-		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
+		placed := lipgloss.Place(contentWidth, contentHeight, lipgloss.Center, lipgloss.Center, box)
+		return m.styles.outer.Width(m.width).Height(m.height).Render(placed)
 	}
 	if m.confirmErr != nil {
 		box := m.styles.modal.Render(fmt.Sprintf("Error: %v\n\nEsc: Back", m.confirmErr))
-		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
+		placed := lipgloss.Place(contentWidth, contentHeight, lipgloss.Center, lipgloss.Center, box)
+		return m.styles.outer.Width(m.width).Height(m.height).Render(placed)
 	}
 
 	lines := []string{
@@ -431,10 +438,12 @@ func (m model) viewConfirm() string {
 	}
 	lines = append(lines, "", "Enter: Continue  Esc: Back")
 	box := m.styles.modal.Render(strings.Join(lines, "\n"))
-	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
+	placed := lipgloss.Place(contentWidth, contentHeight, lipgloss.Center, lipgloss.Center, box)
+	return m.styles.outer.Width(m.width).Height(m.height).Render(placed)
 }
 
 func (m model) viewConfig() string {
+	contentWidth, contentHeight := contentSize(m.width, m.height)
 	lines := []string{
 		m.styles.modalTitle.Render("Configuration"),
 		"",
@@ -446,15 +455,19 @@ func (m model) viewConfig() string {
 		"Enter: Start  Esc: Back",
 	}
 	box := m.styles.modal.Render(strings.Join(lines, "\n"))
-	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
+	placed := lipgloss.Place(contentWidth, contentHeight, lipgloss.Center, lipgloss.Center, box)
+	return m.styles.outer.Width(m.width).Height(m.height).Render(placed)
 }
 
 func (m model) viewProcessing() string {
+	contentWidth, contentHeight := contentSize(m.width, m.height)
 	box := m.styles.modal.Render("Processing...")
-	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
+	placed := lipgloss.Place(contentWidth, contentHeight, lipgloss.Center, lipgloss.Center, box)
+	return m.styles.outer.Width(m.width).Height(m.height).Render(placed)
 }
 
 func (m model) viewSummary() string {
+	contentWidth, contentHeight := contentSize(m.width, m.height)
 	success := 0
 	failed := 0
 	for _, r := range m.results {
@@ -473,7 +486,8 @@ func (m model) viewSummary() string {
 		"Press q to quit",
 	}
 	box := m.styles.modal.Render(strings.Join(lines, "\n"))
-	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
+	placed := lipgloss.Place(contentWidth, contentHeight, lipgloss.Center, lipgloss.Center, box)
+	return m.styles.outer.Width(m.width).Height(m.height).Render(placed)
 }
 
 func (m model) statusLine() string {

@@ -12,6 +12,23 @@ type paneLayout struct {
 	rightInnerWidth int
 }
 
+const (
+	outerPadX = 2
+	outerPadY = 1
+)
+
+func contentSize(width, height int) (int, int) {
+	w := width - 2*outerPadX
+	h := height - 2*outerPadY
+	if w < 1 {
+		w = 1
+	}
+	if h < 1 {
+		h = 1
+	}
+	return w, h
+}
+
 func calcPaneLayout(width, height int) paneLayout {
 	const statusHeight = 1
 	const headerHeight = 1
