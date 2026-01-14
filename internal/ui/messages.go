@@ -1,6 +1,9 @@
 package ui
 
-import "github.com/resize-to-telegram-sticker/internal/app"
+import (
+	"github.com/resize-to-telegram-sticker/internal/app"
+	"github.com/resize-to-telegram-sticker/internal/infra"
+)
 
 type errMsg struct {
 	err error
@@ -8,6 +11,17 @@ type errMsg struct {
 
 type doneMsg struct {
 	results []app.Result
+}
+
+type dirEntriesMsg struct {
+	path    string
+	entries []infra.DirEntry
+	err     error
+}
+
+type confirmMsg struct {
+	result app.ExpandResult
+	err    error
 }
 
 type listItem struct {
