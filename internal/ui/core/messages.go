@@ -24,6 +24,16 @@ type ConfirmMsg struct {
 	Err    error
 }
 
+type ProcessingPlanMsg struct {
+	Jobs []app.Job
+	Err  error
+}
+
+type ProcessingJobResultMsg struct {
+	Index  int
+	Result app.Result
+}
+
 type ListItem struct {
 	Value string
 }

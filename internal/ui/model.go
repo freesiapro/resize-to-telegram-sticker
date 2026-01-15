@@ -55,6 +55,9 @@ type model struct {
 	config     screens.ConfigScreen
 	processing screens.ProcessingScreen
 	summary    screens.SummaryScreen
+
+	processingJobs    []app.Job
+	processingResults []app.Result
 }
 
 func NewModel() model {
@@ -78,7 +81,7 @@ func NewModelWithDeps(cwd string, lister DirLister, expander SelectionExpander) 
 		browse:     screens.NewBrowseScreen(cwd),
 		confirm:    screens.ConfirmScreen{},
 		config:     screens.NewConfigScreen(),
-		processing: screens.ProcessingScreen{},
+		processing: screens.NewProcessingScreen(),
 		summary:    screens.SummaryScreen{},
 	}
 }
@@ -111,6 +114,32 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.state = stateSummary
 		m.summary.SetResults(msg.Results)
 		return m, nil
+	case core.ProcessingPlanMsg:
+		if msg.Err != nil {
+			m.state = stateBrowse
+			m.browse.SetStatus(msg.Err)
+			return m, nil
+		}
+		if len(msg.Jobs) == 0 {
+			m.state = stateBrowse
+			m.browse.SetStatus(fmt.Errorf("no valid inputs"))
+			return m, nil
+		}
+		m.processingJobs = msg.Jobs
+		m.processingResults = make([]app.Result, len(msg.Jobs))
+		m.processing.SetJobs(msg.Jobs)
+		return m, m.startNextJob()
+	case core.ProcessingJobResultMsg:
+		if msg.Index >= 0 && msg.Index < len(m.processingResults) {
+			m.processingResults[msg.Index] = msg.Result
+		}
+		m.processing.ApplyResult(msg.Index, msg.Result)
+		if m.processing.DoneCount >= len(m.processingJobs) {
+			m.state = stateSummary
+			m.summary.SetResults(m.processingResults)
+			return m, nil
+		}
+		return m, m.startNextJob()
 	}
 
 	if key, ok := msg.(tea.KeyMsg); ok {
@@ -156,7 +185,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, result.Cmd
 		case screens.ConfigActionStart:
 			m.state = stateProcessing
-			return m, runPipelineCmd(m.pipeline, m.expander, m.browse.SelectedItems(), m.config.OutputDir)
+			m.processing.Reset()
+			m.processingJobs = nil
+			m.processingResults = nil
+			return m, planProcessingCmd(m.expander, m.browse.SelectedItems(), m.config.OutputDir)
 		}
 		return m, result.Cmd
 	case stateProcessing:
@@ -197,18 +229,38 @@ func expandCmd(expander SelectionExpander, selections []app.SelectionItem, outpu
 	}
 }
 
-func runPipelineCmd(pipeline app.Pipeline, expander SelectionExpander, selections []app.SelectionItem, outputDir string) tea.Cmd {
+func planProcessingCmd(expander SelectionExpander, selections []app.SelectionItem, outputDir string) tea.Cmd {
 	return func() tea.Msg {
 		result, err := expander.Expand(selections, outputDir)
 		if err != nil {
-			return core.ErrMsg{Err: err}
+			return core.ProcessingPlanMsg{Err: err}
 		}
-		if len(result.Jobs) == 0 {
-			return core.ErrMsg{Err: fmt.Errorf("no valid inputs")}
-		}
-		results := pipeline.Run(context.Background(), result.Jobs)
-		return core.DoneMsg{Results: results}
+		return core.ProcessingPlanMsg{Jobs: result.Jobs}
 	}
+}
+
+func runJobCmd(pipeline app.Pipeline, job app.Job, index int) tea.Cmd {
+	return func() tea.Msg {
+		results := pipeline.Run(context.Background(), []app.Job{job})
+		if len(results) == 0 {
+			return core.ProcessingJobResultMsg{
+				Index:  index,
+				Result: app.Result{InputPath: job.InputPath, Err: fmt.Errorf("no result")},
+			}
+		}
+		return core.ProcessingJobResultMsg{Index: index, Result: results[0]}
+	}
+}
+
+func (m *model) startNextJob() tea.Cmd {
+	next := m.processing.NextPendingIndex()
+	if next < 0 {
+		m.state = stateSummary
+		m.summary.SetResults(m.processingResults)
+		return nil
+	}
+	m.processing.MarkProcessing(next)
+	return runJobCmd(m.pipeline, m.processingJobs[next], next)
 }
 
 func batchCmds(cmds []tea.Cmd) tea.Cmd {
