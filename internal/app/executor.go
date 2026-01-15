@@ -69,6 +69,9 @@ func (e Executor) Run(ctx context.Context, tasks []Task, events chan<- TaskEvent
 				if !ok {
 					return
 				}
+				if ctx.Err() != nil {
+					return
+				}
 				events <- TaskEvent{Type: TaskStarted, Task: task}
 				handler := handlerLookup[task.Type]
 				result := runTask(ctx, task, handler)

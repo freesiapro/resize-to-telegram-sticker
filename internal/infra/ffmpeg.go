@@ -17,6 +17,7 @@ type FFmpegRunner struct{}
 func (r FFmpegRunner) Encode(ctx context.Context, inputPath string, attempt domain.EncodeAttempt, outputPath string, opts domain.EncodeOptions) error {
 	inputKw := buildInputKwArgs(attempt)
 	stream := ffmpeg.Input(inputPath, inputKw).Silent(true)
+	stream.Context = ctx
 
 	scaleArg := fmt.Sprintf("%d:%d", attempt.Width, attempt.Height)
 	stream = stream.Filter("scale", ffmpeg.Args{scaleArg})

@@ -56,9 +56,11 @@ type model struct {
 	processing screens.ProcessingScreen
 	summary    screens.SummaryScreen
 
-	processingTasks   []app.Task
-	processingResults []app.Result
-	processingEvents  chan app.TaskEvent
+	processingTasks    []app.Task
+	processingResults  []app.Result
+	processingEvents   chan app.TaskEvent
+	processingCancel   context.CancelFunc
+	processingCanceled bool
 }
 
 func NewModel() model {
@@ -136,29 +138,35 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.processingResults = make([]app.Result, len(tasks))
 		m.processing.SetTasks(tasks)
 		m.processingEvents = make(chan app.TaskEvent, len(tasks)*2)
+		m.processingCanceled = false
 		executor := m.executor
 		events := m.processingEvents
-		ctx := context.Background()
+		ctx, cancel := context.WithCancel(context.Background())
+		m.processingCancel = cancel
 		go func() {
 			_ = executor.Run(ctx, tasks, events)
 		}()
 		return m, listenForProcessingEvent(events)
 	case core.ProcessingTaskStartedMsg:
-		m.processing.MarkProcessing(msg.ID)
+		if !m.processingCanceled {
+			m.processing.MarkProcessing(msg.ID)
+		}
 		return m, listenForProcessingEvent(m.processingEvents)
 	case core.ProcessingJobResultMsg:
 		if msg.Index >= 0 && msg.Index < len(m.processingResults) {
 			m.processingResults[msg.Index] = msg.Result
 		}
 		m.processing.ApplyResult(msg.Index, msg.Result)
-		if m.processing.DoneCount >= len(m.processingTasks) {
+		if !m.processingCanceled && m.processing.DoneCount >= len(m.processingTasks) {
 			m.state = stateSummary
 			m.summary.SetResults(m.processingResults)
+			m.processingCancel = nil
 			return m, nil
 		}
 		return m, listenForProcessingEvent(m.processingEvents)
 	case processingEventsClosedMsg:
 		m.processingEvents = nil
+		m.processingCancel = nil
 		return m, nil
 	}
 
@@ -209,10 +217,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.processingTasks = nil
 			m.processingResults = nil
 			m.processingEvents = nil
+			m.processingCancel = nil
+			m.processingCanceled = false
 			return m, planProcessingCmd(m.expander, m.browse.SelectedItems(), m.config.OutputDir)
 		}
 		return m, result.Cmd
 	case stateProcessing:
+		if key, ok := msg.(tea.KeyMsg); ok && key.String() == "esc" {
+			if !m.processingCanceled {
+				m.cancelProcessing()
+				return m, listenForProcessingEvent(m.processingEvents)
+			}
+			if m.processingEvents == nil {
+				m.state = stateBrowse
+				return m, nil
+			}
+		}
 		return m, nil
 	case stateSummary:
 		return m, nil
@@ -300,4 +320,13 @@ func buildVideoStickerTasks(jobs []app.Job) []app.Task {
 		})
 	}
 	return tasks
+}
+
+func (m *model) cancelProcessing() {
+	if m.processingCancel != nil {
+		m.processingCancel()
+		m.processingCancel = nil
+	}
+	m.processingCanceled = true
+	m.processing.Cancel()
 }

@@ -33,6 +33,7 @@ type ProcessingScreen struct {
 	DoneCount int
 	indexByID map[int]int
 	progress  progress.Model
+	Canceled  bool
 }
 
 func NewProcessingScreen() ProcessingScreen {
@@ -40,6 +41,7 @@ func NewProcessingScreen() ProcessingScreen {
 		Items:     make([]ProcessingItem, 0),
 		indexByID: make(map[int]int),
 		progress:  progress.New(progress.WithSolidFill("69")),
+		Canceled:  false,
 	}
 }
 
@@ -47,6 +49,7 @@ func (p *ProcessingScreen) Reset() {
 	p.Items = make([]ProcessingItem, 0)
 	p.DoneCount = 0
 	p.indexByID = make(map[int]int)
+	p.Canceled = false
 }
 
 func (p *ProcessingScreen) SetTasks(tasks []app.Task) {
@@ -89,6 +92,10 @@ func (p *ProcessingScreen) ApplyResult(id int, result app.Result) {
 	}
 }
 
+func (p *ProcessingScreen) Cancel() {
+	p.Canceled = true
+}
+
 func (p ProcessingScreen) View(width, height int, styles core.Styles) string {
 	contentWidth, contentHeight := core.ContentSize(width, height)
 	if contentWidth < 1 {
@@ -98,6 +105,9 @@ func (p ProcessingScreen) View(width, height int, styles core.Styles) string {
 	lines = append(lines, styles.ModalTitle.Render("Processing"))
 	lines = append(lines, truncateLine(fmt.Sprintf("Done: %d / %d", p.DoneCount, len(p.Items)), contentWidth))
 	lines = append(lines, truncateLine(fmt.Sprintf("Current: %s", p.currentLabel()), contentWidth))
+	if statusLine := p.statusLine(); statusLine != "" {
+		lines = append(lines, truncateLine(statusLine, contentWidth))
+	}
 	lines = append(lines, p.progressLine(contentWidth))
 	lines = append(lines, "")
 
@@ -210,6 +220,13 @@ func truncateLine(value string, width int) string {
 		return ""
 	}
 	return ansi.Truncate(value, width, "...")
+}
+
+func (p ProcessingScreen) statusLine() string {
+	if !p.Canceled {
+		return ""
+	}
+	return "Status: Canceled (Esc: Back)"
 }
 
 func resultStatus(result app.Result) (ProcessingStatus, string) {

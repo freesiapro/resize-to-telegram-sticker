@@ -33,6 +33,10 @@ type Pipeline struct {
 func (p Pipeline) Run(ctx context.Context, jobs []Job) []Result {
 	results := make([]Result, 0, len(jobs))
 	for _, job := range jobs {
+		if err := ctx.Err(); err != nil {
+			results = append(results, Result{InputPath: job.InputPath, Err: err})
+			return results
+		}
 		info, err := p.Probe.Probe(ctx, job.InputPath)
 		if err != nil {
 			results = append(results, Result{InputPath: job.InputPath, Err: err})
@@ -58,6 +62,10 @@ func (p Pipeline) Run(ctx context.Context, jobs []Job) []Result {
 		var lastErr error
 		var lastIssues []domain.ValidationIssue
 		for _, a := range attempts {
+			if err := ctx.Err(); err != nil {
+				results = append(results, Result{InputPath: job.InputPath, Err: err})
+				return results
+			}
 			err = p.Encode.Encode(ctx, job.InputPath, a, output, domain.EncodeOptions{TrimSeconds: domain.MaxStickerDurationSeconds})
 			if err != nil {
 				lastErr = err
