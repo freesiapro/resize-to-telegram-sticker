@@ -52,6 +52,8 @@ func buildOutputKwArgs(attempt domain.EncodeAttempt) ffmpeg.KwArgs {
 	}
 	if attempt.FPS > 0 {
 		kw["r"] = fmt.Sprintf("%d", attempt.FPS)
+	} else {
+		kw["fps_mode"] = "vfr"
 	}
 	if attempt.DurationSeconds > 0 {
 		kw["t"] = fmt.Sprintf("%d", attempt.DurationSeconds)

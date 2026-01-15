@@ -19,6 +19,38 @@ func TestBuildAttemptsOrder(t *testing.T) {
 	}
 }
 
+func TestBuildAttemptsPreserveFPSWhenWithinLimit(t *testing.T) {
+	info := MediaInfo{Width: 512, Height: 256, FPS: 25, DurationSeconds: 2.5}
+	attempts, err := BuildAttempts(info, InputKindVideo)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if len(attempts) == 0 {
+		t.Fatal("expected attempts")
+	}
+	if attempts[0].FPS != 0 {
+		t.Fatalf("expected base attempt to preserve fps, got: %d", attempts[0].FPS)
+	}
+	for _, attempt := range attempts {
+		if attempt.FPS == 25 {
+			t.Fatalf("unexpected forced fps: %d", attempt.FPS)
+		}
+	}
+}
+
+func TestBuildAttemptsSkipFPSFallbackWhenUnknown(t *testing.T) {
+	info := MediaInfo{Width: 512, Height: 256, FPS: 0, DurationSeconds: 2.5}
+	attempts, err := BuildAttempts(info, InputKindVideo)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	for _, attempt := range attempts {
+		if attempt.FPS != 0 {
+			t.Fatalf("unexpected fps attempt: %d", attempt.FPS)
+		}
+	}
+}
+
 func TestBuildAttemptsAdaptiveBitrateStep(t *testing.T) {
 	baseInfo := MediaInfo{Width: 1000, Height: 500, FPS: 30, DurationSeconds: 3}
 	baseBitrate := expectedBaseBitrateKbps(3)

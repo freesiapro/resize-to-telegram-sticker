@@ -18,10 +18,9 @@ func BuildAttempts(info MediaInfo, kind InputKind) ([]EncodeAttempt, error) {
 		return nil, err
 	}
 
-	baseFPS := int(math.Min(info.FPS, float64(MaxStickerFPS)))
-	if baseFPS <= 0 {
-		baseFPS = MaxStickerFPS
-	}
+	baseAttemptFPS := pickBaseAttemptFPS(info, kind)
+	fallbackBaseFPS, allowFPSFallback := pickFallbackBaseFPS(info, kind)
+	fpsFallbackSteps := buildFPSFallbackSteps(fallbackBaseFPS, allowFPSFallback)
 
 	baseDuration := MaxStickerDurationSeconds
 	if info.DurationSeconds > 0 && info.DurationSeconds < float64(MaxStickerDurationSeconds) {
@@ -29,15 +28,9 @@ func BuildAttempts(info MediaInfo, kind InputKind) ([]EncodeAttempt, error) {
 	}
 
 	if kind == InputKindImage {
-		baseFPS = DefaultImageFPS
 		baseDuration = DefaultImageDuration
 	}
 	if kind == InputKindGIF {
-		if info.FPS > 0 {
-			baseFPS = int(math.Min(info.FPS, float64(MaxStickerFPS)))
-		} else {
-			baseFPS = DefaultImageFPS
-		}
 		baseDuration = DefaultImageDuration
 	}
 
@@ -50,11 +43,10 @@ func BuildAttempts(info MediaInfo, kind InputKind) ([]EncodeAttempt, error) {
 		bitrateBase = 150
 	}
 
-	bitrateSteps := []float64{1.0, 0.85, 0.7, 0.55}
+	bitrateSteps := []float64{1.0, 0.85, 0.7, 0.55, 0.45, 0.3}
 	sourceSizeBytes := estimateSourceSizeBytes(info.InputSizeBytes, info.BitrateBps, baseDuration)
 	bitrateSteps = chooseBitrateSteps(bitrateSteps, sourceSizeBytes, MaxStickerSizeBytes)
-	scaleSteps := []float64{1.0, 0.9, 0.8}
-	fpsSteps := []int{baseFPS, 24, 20, 15}
+	scaleSteps := []float64{1.0, 0.9, 0.8, 0.7, 0.6}
 
 	loopSeconds := 0
 	if kind == InputKindImage || kind == InputKindGIF {
@@ -66,7 +58,7 @@ func BuildAttempts(info MediaInfo, kind InputKind) ([]EncodeAttempt, error) {
 		attempts = append(attempts, EncodeAttempt{
 			Width:           scaled.Width,
 			Height:          scaled.Height,
-			FPS:             baseFPS,
+			FPS:             baseAttemptFPS,
 			BitrateKbps:     int(float64(bitrateBase) * b),
 			DurationSeconds: baseDuration,
 			InputKind:       kind,
@@ -87,7 +79,7 @@ func BuildAttempts(info MediaInfo, kind InputKind) ([]EncodeAttempt, error) {
 			attempts = append(attempts, EncodeAttempt{
 				Width:           w,
 				Height:          h,
-				FPS:             baseFPS,
+				FPS:             baseAttemptFPS,
 				BitrateKbps:     int(float64(bitrateBase) * b),
 				DurationSeconds: baseDuration,
 				InputKind:       kind,
@@ -96,10 +88,7 @@ func BuildAttempts(info MediaInfo, kind InputKind) ([]EncodeAttempt, error) {
 		}
 	}
 
-	for _, f := range fpsSteps[1:] {
-		if f <= 0 {
-			continue
-		}
+	for _, f := range fpsFallbackSteps {
 		for _, b := range bitrateSteps {
 			attempts = append(attempts, EncodeAttempt{
 				Width:           scaled.Width,
@@ -114,6 +103,44 @@ func BuildAttempts(info MediaInfo, kind InputKind) ([]EncodeAttempt, error) {
 	}
 
 	return attempts, nil
+}
+
+func pickBaseAttemptFPS(info MediaInfo, kind InputKind) int {
+	if kind == InputKindImage {
+		return DefaultImageFPS
+	}
+	if info.FPS > float64(MaxStickerFPS) {
+		return MaxStickerFPS
+	}
+	return 0
+}
+
+func pickFallbackBaseFPS(info MediaInfo, kind InputKind) (int, bool) {
+	if kind == InputKindImage {
+		return DefaultImageFPS, true
+	}
+	if info.FPS <= 0 {
+		return 0, false
+	}
+	baseFPS := int(math.Min(info.FPS, float64(MaxStickerFPS)))
+	if baseFPS <= 0 {
+		return 0, false
+	}
+	return baseFPS, true
+}
+
+func buildFPSFallbackSteps(baseFPS int, allow bool) []int {
+	if !allow {
+		return nil
+	}
+	candidates := []int{24, 20, 15}
+	steps := make([]int, 0, len(candidates))
+	for _, f := range candidates {
+		if f > 0 && f < baseFPS {
+			steps = append(steps, f)
+		}
+	}
+	return steps
 }
 
 func estimateSourceSizeBytes(inputSizeBytes int64, bitrateBps int64, durationSeconds int) int64 {

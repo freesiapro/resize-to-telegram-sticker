@@ -47,3 +47,15 @@ func TestBuildOutputKwArgs(t *testing.T) {
 
 	_ = ffmpeg.KwArgs(got)
 }
+
+func TestBuildOutputKwArgsPreserveFPS(t *testing.T) {
+	attempt := domain.EncodeAttempt{FPS: 0, BitrateKbps: 500, DurationSeconds: 3}
+	got := buildOutputKwArgs(attempt)
+
+	if _, ok := got["r"]; ok {
+		t.Fatalf("unexpected fps override: %v", got["r"])
+	}
+	if got["fps_mode"] != "vfr" {
+		t.Fatalf("unexpected fps_mode: %v", got["fps_mode"])
+	}
+}
