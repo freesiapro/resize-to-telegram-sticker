@@ -29,6 +29,10 @@ type ProcessingPlanMsg struct {
 	Err  error
 }
 
+type ProcessingTaskStartedMsg struct {
+	ID int
+}
+
 type ProcessingJobResultMsg struct {
 	Index  int
 	Result app.Result

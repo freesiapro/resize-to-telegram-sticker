@@ -23,7 +23,7 @@ const (
 
 type ProcessingItem struct {
 	ID     int
-	Path   string
+	Label  string
 	Status ProcessingStatus
 	Err    string
 }
@@ -31,43 +31,51 @@ type ProcessingItem struct {
 type ProcessingScreen struct {
 	Items     []ProcessingItem
 	DoneCount int
+	indexByID map[int]int
 	progress  progress.Model
 }
 
 func NewProcessingScreen() ProcessingScreen {
 	return ProcessingScreen{
-		Items:    make([]ProcessingItem, 0),
-		progress: progress.New(progress.WithSolidFill("69")),
+		Items:     make([]ProcessingItem, 0),
+		indexByID: make(map[int]int),
+		progress:  progress.New(progress.WithSolidFill("69")),
 	}
 }
 
 func (p *ProcessingScreen) Reset() {
 	p.Items = make([]ProcessingItem, 0)
 	p.DoneCount = 0
+	p.indexByID = make(map[int]int)
 }
 
-func (p *ProcessingScreen) SetJobs(jobs []app.Job) {
-	items := make([]ProcessingItem, 0, len(jobs))
-	for i, job := range jobs {
+func (p *ProcessingScreen) SetTasks(tasks []app.Task) {
+	items := make([]ProcessingItem, 0, len(tasks))
+	indexByID := make(map[int]int)
+	for i, task := range tasks {
 		items = append(items, ProcessingItem{
-			ID:     i,
-			Path:   job.InputPath,
+			ID:     task.ID,
+			Label:  task.Label,
 			Status: ProcessingPending,
 		})
+		indexByID[task.ID] = i
 	}
 	p.Items = items
 	p.DoneCount = 0
+	p.indexByID = indexByID
 }
 
-func (p *ProcessingScreen) MarkProcessing(index int) {
-	if index < 0 || index >= len(p.Items) {
+func (p *ProcessingScreen) MarkProcessing(id int) {
+	index, ok := p.indexByID[id]
+	if !ok {
 		return
 	}
 	p.Items[index].Status = ProcessingRunning
 }
 
-func (p *ProcessingScreen) ApplyResult(index int, result app.Result) {
-	if index < 0 || index >= len(p.Items) {
+func (p *ProcessingScreen) ApplyResult(id int, result app.Result) {
+	index, ok := p.indexByID[id]
+	if !ok {
 		return
 	}
 	previous := p.Items[index].Status
@@ -79,15 +87,6 @@ func (p *ProcessingScreen) ApplyResult(index int, result app.Result) {
 			p.DoneCount++
 		}
 	}
-}
-
-func (p ProcessingScreen) NextPendingIndex() int {
-	for i, item := range p.Items {
-		if item.Status == ProcessingPending {
-			return i
-		}
-	}
-	return -1
 }
 
 func (p ProcessingScreen) View(width, height int, styles core.Styles) string {
@@ -135,9 +134,9 @@ func (p ProcessingScreen) currentLabel() string {
 		return "-"
 	}
 	if len(processing) == 1 {
-		return processing[0].Path
+		return processing[0].Label
 	}
-	return fmt.Sprintf("%s (+%d)", processing[0].Path, len(processing)-1)
+	return fmt.Sprintf("%s (+%d)", processing[0].Label, len(processing)-1)
 }
 
 func (p ProcessingScreen) listLines(height int, width int) []string {
@@ -191,7 +190,7 @@ func formatProcessingItem(item ProcessingItem) string {
 	case ProcessingFailed:
 		label = "[FAIL]"
 	}
-	line := fmt.Sprintf("%s %s", label, item.Path)
+	line := fmt.Sprintf("%s %s", label, item.Label)
 	if item.Err != "" {
 		line = fmt.Sprintf("%s (%s)", line, sanitizeLine(item.Err))
 	}

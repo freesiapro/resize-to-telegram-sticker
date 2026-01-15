@@ -46,7 +46,7 @@ type model struct {
 
 	lister   DirLister
 	expander SelectionExpander
-	pipeline app.Pipeline
+	executor app.Executor
 
 	styles core.Styles
 
@@ -56,8 +56,9 @@ type model struct {
 	processing screens.ProcessingScreen
 	summary    screens.SummaryScreen
 
-	processingJobs    []app.Job
+	processingTasks   []app.Task
 	processingResults []app.Result
+	processingEvents  chan app.TaskEvent
 }
 
 func NewModel() model {
@@ -69,13 +70,18 @@ func NewModel() model {
 }
 
 func NewModelWithDeps(cwd string, lister DirLister, expander SelectionExpander) model {
+	pipeline := app.Pipeline{
+		Probe:  infra.FFprobeRunner{},
+		Encode: infra.FFmpegRunner{},
+	}
 	return model{
 		state:    stateBrowse,
 		lister:   lister,
 		expander: expander,
-		pipeline: app.Pipeline{
-			Probe:  infra.FFprobeRunner{},
-			Encode: infra.FFmpegRunner{},
+		executor: app.Executor{
+			Handlers: map[app.TaskType]app.TaskHandler{
+				app.TaskTypeVideoSticker: app.VideoStickerHandler{Pipeline: pipeline},
+			},
 		},
 		styles:     core.NewStyles(),
 		browse:     screens.NewBrowseScreen(cwd),
@@ -125,21 +131,35 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.browse.SetStatus(fmt.Errorf("no valid inputs"))
 			return m, nil
 		}
-		m.processingJobs = msg.Jobs
-		m.processingResults = make([]app.Result, len(msg.Jobs))
-		m.processing.SetJobs(msg.Jobs)
-		return m, m.startNextJob()
+		tasks := buildVideoStickerTasks(msg.Jobs)
+		m.processingTasks = tasks
+		m.processingResults = make([]app.Result, len(tasks))
+		m.processing.SetTasks(tasks)
+		m.processingEvents = make(chan app.TaskEvent, len(tasks)*2)
+		executor := m.executor
+		events := m.processingEvents
+		ctx := context.Background()
+		go func() {
+			_ = executor.Run(ctx, tasks, events)
+		}()
+		return m, listenForProcessingEvent(events)
+	case core.ProcessingTaskStartedMsg:
+		m.processing.MarkProcessing(msg.ID)
+		return m, listenForProcessingEvent(m.processingEvents)
 	case core.ProcessingJobResultMsg:
 		if msg.Index >= 0 && msg.Index < len(m.processingResults) {
 			m.processingResults[msg.Index] = msg.Result
 		}
 		m.processing.ApplyResult(msg.Index, msg.Result)
-		if m.processing.DoneCount >= len(m.processingJobs) {
+		if m.processing.DoneCount >= len(m.processingTasks) {
 			m.state = stateSummary
 			m.summary.SetResults(m.processingResults)
 			return m, nil
 		}
-		return m, m.startNextJob()
+		return m, listenForProcessingEvent(m.processingEvents)
+	case processingEventsClosedMsg:
+		m.processingEvents = nil
+		return m, nil
 	}
 
 	if key, ok := msg.(tea.KeyMsg); ok {
@@ -186,8 +206,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case screens.ConfigActionStart:
 			m.state = stateProcessing
 			m.processing.Reset()
-			m.processingJobs = nil
+			m.processingTasks = nil
 			m.processingResults = nil
+			m.processingEvents = nil
 			return m, planProcessingCmd(m.expander, m.browse.SelectedItems(), m.config.OutputDir)
 		}
 		return m, result.Cmd
@@ -239,30 +260,6 @@ func planProcessingCmd(expander SelectionExpander, selections []app.SelectionIte
 	}
 }
 
-func runJobCmd(pipeline app.Pipeline, job app.Job, index int) tea.Cmd {
-	return func() tea.Msg {
-		results := pipeline.Run(context.Background(), []app.Job{job})
-		if len(results) == 0 {
-			return core.ProcessingJobResultMsg{
-				Index:  index,
-				Result: app.Result{InputPath: job.InputPath, Err: fmt.Errorf("no result")},
-			}
-		}
-		return core.ProcessingJobResultMsg{Index: index, Result: results[0]}
-	}
-}
-
-func (m *model) startNextJob() tea.Cmd {
-	next := m.processing.NextPendingIndex()
-	if next < 0 {
-		m.state = stateSummary
-		m.summary.SetResults(m.processingResults)
-		return nil
-	}
-	m.processing.MarkProcessing(next)
-	return runJobCmd(m.pipeline, m.processingJobs[next], next)
-}
-
 func batchCmds(cmds []tea.Cmd) tea.Cmd {
 	if len(cmds) == 0 {
 		return nil
@@ -271,4 +268,36 @@ func batchCmds(cmds []tea.Cmd) tea.Cmd {
 		return cmds[0]
 	}
 	return tea.Batch(cmds...)
+}
+
+type processingEventsClosedMsg struct{}
+
+func listenForProcessingEvent(events <-chan app.TaskEvent) tea.Cmd {
+	return func() tea.Msg {
+		event, ok := <-events
+		if !ok {
+			return processingEventsClosedMsg{}
+		}
+		switch event.Type {
+		case app.TaskStarted:
+			return core.ProcessingTaskStartedMsg{ID: event.Task.ID}
+		case app.TaskFinished:
+			return core.ProcessingJobResultMsg{Index: event.Task.ID, Result: event.Result}
+		default:
+			return processingEventsClosedMsg{}
+		}
+	}
+}
+
+func buildVideoStickerTasks(jobs []app.Job) []app.Task {
+	tasks := make([]app.Task, 0, len(jobs))
+	for i, job := range jobs {
+		tasks = append(tasks, app.Task{
+			ID:      i,
+			Type:    app.TaskTypeVideoSticker,
+			Label:   job.InputPath,
+			Payload: app.VideoStickerPayload{Job: job},
+		})
+	}
+	return tasks
 }
