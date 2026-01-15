@@ -1,8 +1,11 @@
 package infra
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"os"
+	"strings"
 
 	ffmpeg "github.com/u2takey/ffmpeg-go"
 
@@ -13,7 +16,7 @@ type FFmpegRunner struct{}
 
 func (r FFmpegRunner) Encode(ctx context.Context, inputPath string, attempt domain.EncodeAttempt, outputPath string, opts domain.EncodeOptions) error {
 	inputKw := buildInputKwArgs(attempt)
-	stream := ffmpeg.Input(inputPath, inputKw)
+	stream := ffmpeg.Input(inputPath, inputKw).Silent(true)
 
 	scaleArg := fmt.Sprintf("%d:%d", attempt.Width, attempt.Height)
 	stream = stream.Filter("scale", ffmpeg.Args{scaleArg})
@@ -27,8 +30,26 @@ func (r FFmpegRunner) Encode(ctx context.Context, inputPath string, attempt doma
 	}
 
 	outputKw := buildOutputKwArgs(attempt)
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	err := stream.Output(outputPath, outputKw).
+		OverWriteOutput().
+		WithOutput(&stdout, &stderr).
+		Run()
 
-	return stream.Output(outputPath, outputKw).OverWriteOutput().ErrorToStdOut().Run()
+	if err != nil {
+		stdoutText := stdout.String()
+		stderrText := stderr.String()
+		logPath, logErr := writeFFmpegErrorLog(outputPath, stdoutText, stderrText)
+		suffix := formatFFmpegStderr(stderrText)
+		if logErr == nil && logPath != "" {
+			suffix = fmt.Sprintf("%s (ffmpeg log: %s)", suffix, logPath)
+		} else if logErr != nil {
+			suffix = fmt.Sprintf("%s (ffmpeg log write failed: %v)", suffix, logErr)
+		}
+		return fmt.Errorf("ffmpeg failed: %w%s", err, suffix)
+	}
+	return nil
 }
 
 func buildInputKwArgs(attempt domain.EncodeAttempt) ffmpeg.KwArgs {
@@ -59,4 +80,48 @@ func buildOutputKwArgs(attempt domain.EncodeAttempt) ffmpeg.KwArgs {
 		kw["t"] = fmt.Sprintf("%d", attempt.DurationSeconds)
 	}
 	return kw
+}
+
+func formatFFmpegStderr(stderr string) string {
+	trimmed := strings.TrimSpace(stderr)
+	if trimmed == "" {
+		return ""
+	}
+	const maxLen = 2048
+	if len(trimmed) > maxLen {
+		trimmed = trimmed[len(trimmed)-maxLen:]
+	}
+	return ": " + trimmed
+}
+
+func writeFFmpegErrorLog(outputPath string, stdout string, stderr string) (string, error) {
+	if outputPath == "" {
+		return "", fmt.Errorf("empty output path")
+	}
+	logPath := outputPath + ".ffmpeg-error.log"
+	content := formatFFmpegLog(stdout, stderr)
+	if err := os.WriteFile(logPath, []byte(content), 0o644); err != nil {
+		return "", err
+	}
+	return logPath, nil
+}
+
+func formatFFmpegLog(stdout string, stderr string) string {
+	var builder strings.Builder
+	writeSection := func(title string, content string) {
+		builder.WriteString(title)
+		builder.WriteString(":\n")
+		trimmed := strings.TrimSpace(content)
+		if trimmed == "" {
+			builder.WriteString("<empty>\n")
+			return
+		}
+		builder.WriteString(content)
+		if !strings.HasSuffix(content, "\n") {
+			builder.WriteString("\n")
+		}
+	}
+	writeSection("STDOUT", stdout)
+	writeSection("STDERR", stderr)
+	return builder.String()
 }
