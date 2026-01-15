@@ -1,4 +1,4 @@
-package ui
+package core
 
 import (
 	"fmt"
@@ -113,7 +113,7 @@ func (d *fullRowDelegate) fullRowStyle(width int, style lipgloss.Style) lipgloss
 	return style.Width(width)
 }
 
-func newListModel() list.Model {
+func NewListModel() list.Model {
 	delegate := newListDelegate()
 	listModel := list.New([]list.Item{}, delegate, 0, 0)
 	listModel.SetShowHelp(false)

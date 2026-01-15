@@ -1,15 +1,15 @@
-package ui
+package core
 
-type paneLayout struct {
-	contentHeight   int
-	innerHeight     int
-	listHeight      int
-	dividerWidth    int
-	borderSize      int
-	leftWidth       int
-	rightWidth      int
-	leftInnerWidth  int
-	rightInnerWidth int
+type PaneLayout struct {
+	ContentHeight   int
+	InnerHeight     int
+	ListHeight      int
+	DividerWidth    int
+	BorderSize      int
+	LeftWidth       int
+	RightWidth      int
+	LeftInnerWidth  int
+	RightInnerWidth int
 }
 
 const (
@@ -18,7 +18,7 @@ const (
 	headerPadX = 1
 )
 
-func contentSize(width, height int) (int, int) {
+func ContentSize(width, height int) (int, int) {
 	w := width - 2*outerPadX
 	h := height - 2*outerPadY
 	if w < 1 {
@@ -30,7 +30,7 @@ func contentSize(width, height int) (int, int) {
 	return w, h
 }
 
-func calcPaneLayout(width, height int) paneLayout {
+func CalcPaneLayout(width, height int) PaneLayout {
 	const statusHeight = 3
 	const headerHeight = 1
 
@@ -77,15 +77,15 @@ func calcPaneLayout(width, height int) paneLayout {
 		listHeight = 1
 	}
 
-	return paneLayout{
-		contentHeight:   contentHeight,
-		innerHeight:     innerHeight,
-		listHeight:      listHeight,
-		dividerWidth:    dividerWidth,
-		borderSize:      borderSize,
-		leftWidth:       leftWidth,
-		rightWidth:      rightWidth,
-		leftInnerWidth:  leftInnerWidth,
-		rightInnerWidth: rightInnerWidth,
+	return PaneLayout{
+		ContentHeight:   contentHeight,
+		InnerHeight:     innerHeight,
+		ListHeight:      listHeight,
+		DividerWidth:    dividerWidth,
+		BorderSize:      borderSize,
+		LeftWidth:       leftWidth,
+		RightWidth:      rightWidth,
+		LeftInnerWidth:  leftInnerWidth,
+		RightInnerWidth: rightInnerWidth,
 	}
 }
