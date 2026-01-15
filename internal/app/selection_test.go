@@ -36,16 +36,13 @@ func TestExpandSelections(t *testing.T) {
 		t.Fatalf("unexpected total files: %+v", result)
 	}
 
-	var hasDirOutput, hasOutputDir bool
+	var hasOutputDir bool
 	for _, job := range result.Jobs {
-		if job.OutputDir == filepath.Join(root, "cats") {
-			hasDirOutput = true
-		}
 		if job.OutputDir == filepath.Join(root, "output") {
 			hasOutputDir = true
 		}
 	}
-	if !hasDirOutput || !hasOutputDir {
+	if !hasOutputDir {
 		t.Fatalf("unexpected output dirs: %+v", result.Jobs)
 	}
 }

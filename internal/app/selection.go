@@ -1,7 +1,6 @@
 package app
 
 import (
-	"path/filepath"
 	"sort"
 
 	"github.com/resize-to-telegram-sticker/internal/domain"
@@ -82,9 +81,9 @@ func (e SelectionExpander) Expand(selections []SelectionItem, outputDir string) 
 				continue
 			}
 			seen[path] = struct{}{}
-			jobs = append(jobs, Job{InputPath: path, Kind: kind, OutputDir: filepath.Clean(s.Path)})
+			jobs = append(jobs, Job{InputPath: path, Kind: kind, OutputDir: outputDir})
 			result.TotalFiles++
-			outputSet[filepath.Clean(s.Path)] = struct{}{}
+			outputSet[outputDir] = struct{}{}
 		}
 	}
 
