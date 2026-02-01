@@ -1,0 +1,13 @@
+[project]
+name = "resize-to-telegram-sticker"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "pyside6>=6.10.1",
+    "ffmpeg-python",
+    "pillow",
+    "ruff>=0.14.14",
+    "ty>=0.0.14",
+]
